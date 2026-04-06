@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recovery Tracker — Rewire</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161921;
+    --surface2: #1e2330;
+    --surface3: #252b3b;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --accent: #6c8cff;
+    --accent2: #a78bfa;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --text: #e8eaf0;
+    --muted: #8891a8;
+    --muted2: #4f5770;
+    --card-r: 16px;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Sora', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* Layout */
+  .app { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+  .header { text-align: center; margin-bottom: 32px; padding-top: 8px; }
+  .header .logo { font-size: 11px; font-family: var(--mono); color: var(--accent); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 8px; }
+  .header h1 { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1.2; }
+  .header p { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+  /* Nav tabs */
+  .tabs { display: flex; gap: 4px; background: var(--surface); border-radius: 12px; padding: 4px; margin-bottom: 24px; border: 1px solid var(--border); }
+  .tab { flex: 1; padding: 9px 4px; font-size: 12px; font-weight: 500; text-align: center; border-radius: 9px; border: none; background: none; color: var(--muted); cursor: pointer; transition: all 0.2s; font-family: var(--sans); }
+  .tab.active { background: var(--surface3); color: var(--text); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* Sections */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--card-r); padding: 20px; margin-bottom: 14px; }
+  .card-title { font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+
+  /* Streak counter */
+  .streak-hero { text-align: center; padding: 28px 20px; }
+  .streak-ring { width: 120px; height: 120px; margin: 0 auto 16px; position: relative; }
+  .streak-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .streak-ring .ring-bg { fill: none; stroke: var(--surface3); stroke-width: 8; }
+  .streak-ring .ring-fill { fill: none; stroke: var(--accent); stroke-width: 8; stroke-linecap: round; transition: stroke-dasharray 1s ease; }
+  .streak-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; }
+  .streak-num { font-size: 30px; font-weight: 600; color: var(--text); font-family: var(--mono); line-height: 1; }
+  .streak-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .streak-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .streak-goal { font-size: 12px; font-family: var(--mono); color: var(--accent); margin-top: 8px; }
+
+  /* Stat cards */
+  .stat { background: var(--surface2); border-radius: 12px; padding: 14px; text-align: center; }
+  .stat-val { font-size: 22px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .stat-val.green { color: var(--green); }
+  .stat-val.amber { color: var(--amber); }
+  .stat-val.red { color: var(--red); }
+  .stat-val.blue { color: var(--accent); }
+
+  /* Daily check-in */
+  .check-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .check-row:last-child { border-bottom: none; }
+  .check-label { font-size: 14px; color: var(--text); }
+  .check-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .toggle-wrap { display: flex; gap: 6px; }
+  .tog-btn { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border2); background: var(--surface2); color: var(--muted); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .tog-btn.yes { background: rgba(52,211,153,0.15); border-color: var(--green); color: var(--green); }
+  .tog-btn.no { background: rgba(248,113,113,0.15); border-color: var(--red); color: var(--red); }
+
+  /* Urge log */
+  .urge-entry { display: grid; grid-template-columns: 80px 1fr 90px; gap: 8px; align-items: start; }
+  .form-input { background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 9px 12px; color: var(--text); font-family: var(--sans); font-size: 13px; width: 100%; }
+  .form-input:focus { outline: none; border-color: var(--accent); }
+  .form-input option { background: var(--surface2); }
+  textarea.form-input { resize: none; height: 70px; }
+  .btn { padding: 9px 18px; border-radius: 9px; border: none; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .btn-primary { background: var(--accent); color: #0d0f14; }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+  .btn-ghost:hover { background: var(--surface3); }
+  .btn-danger { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); font-size: 11px; padding: 5px 10px; }
+
+  /* Log list */
+  .log-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-height: 260px; overflow-y: auto; }
+  .log-item { background: var(--surface2); border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: flex-start; }
+  .log-item-content { flex: 1; }
+  .log-trigger { font-size: 12px; font-family: var(--mono); color: var(--accent2); margin-bottom: 2px; }
+  .log-note { font-size: 13px; color: var(--text); }
+  .log-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  /* Calendar heatmap */
+  .cal-wrap { overflow-x: auto; }
+  .cal-grid { display: flex; gap: 3px; }
+  .cal-col { display: flex; flex-direction: column; gap: 3px; }
+  .cal-cell { width: 14px; height: 14px; border-radius: 3px; background: var(--surface3); transition: all 0.15s; cursor: pointer; }
+  .cal-cell:hover { opacity: 0.8; }
+  .cal-cell.clean { background: #1a4731; }
+  .cal-cell.clean-great { background: var(--green); }
+  .cal-cell.relapse { background: rgba(248,113,113,0.4); }
+  .cal-cell.today-cell { outline: 1.5px solid var(--accent); }
+  .cal-legend { display: flex; gap: 12px; margin-top: 10px; align-items: center; }
+  .cal-leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .cal-leg-dot { width: 12px; height: 12px; border-radius: 3px; }
+  .cal-months { display: flex; gap: 3px; margin-bottom: 4px; }
+  .cal-month-lbl { font-size: 10px; color: var(--muted); font-family: var(--mono); }
+
+  /* Milestones */
+  .milestone { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .milestone:last-child { border-bottom: none; }
+  .ms-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .ms-icon.locked { background: var(--surface3); filter: grayscale(1) opacity(0.4); }
+  .ms-icon.unlocked { background: rgba(108,140,255,0.15); }
+  .ms-info { flex: 1; }
+  .ms-name { font-size: 14px; font-weight: 500; color: var(--text); }
+  .ms-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .ms-day { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+  .ms-day.locked { color: var(--muted2); }
+
+  /* Progress bars */
+  .progress-wrap { margin-top: 6px; }
+  .progress-bar-bg { height: 6px; background: var(--surface3); border-radius: 99px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.8s ease; }
+  .progress-bar-fill.green { background: var(--green); }
+  .progress-bar-fill.amber { background: var(--amber); }
+
+  /* Trigger analysis */
+  .trigger-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .trigger-name { font-size: 13px; color: var(--text); width: 100px; flex-shrink: 0; }
+  .trigger-bar-bg { flex: 1; height: 8px; background: var(--surface3); border-radius: 99px; overflow: hidden; }
+  .trigger-bar-fill { height: 100%; background: var(--accent2); border-radius: 99px; }
+  .trigger-count { font-size: 12px; font-family: var(--mono); color: var(--muted); width: 24px; text-align: right; }
+
+  /* Journal */
+  .journal-entry { background: var(--surface2); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .journal-date { font-size: 11px; font-family: var(--mono); color: var(--muted); margin-bottom: 6px; }
+  .journal-text { font-size: 13px; color: var(--text); line-height: 1.7; }
+  .mood-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .mood-btn { flex: 1; padding: 8px 4px; border-radius: 8px; border: 1px solid var(--border2); background: var(--surface2); font-size: 18px; cursor: pointer; transition: all 0.15s; text-align: center; }
+  .mood-btn.selected { border-color: var(--accent); background: rgba(108,140,255,0.12); }
+
+  /* Techniques */
+  .technique { background: var(--surface2); border-radius: 12px; padding: 16px; margin-bottom: 10px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+  .technique:hover, .technique.open { border-color: var(--border2); }
+  .technique-header { display: flex; justify-content: space-between; align-items: center; }
+  .technique-name { font-size: 14px; font-weight: 500; color: var(--text); }
+  .technique-tag { font-size: 10px; font-family: var(--mono); padding: 3px 8px; border-radius: 99px; }
+  .tag-instant { background: rgba(52,211,153,0.15); color: var(--green); }
+  .tag-daily { background: rgba(108,140,255,0.15); color: var(--accent); }
+  .tag-deep { background: rgba(167,139,250,0.15); color: var(--accent2); }
+  .technique-body { display: none; margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .technique.open .technique-body { display: block; }
+  .technique-step { display: flex; gap: 10px; margin-bottom: 8px; padding-left: 4px; }
+  .step-num { font-family: var(--mono); font-size: 11px; color: var(--accent); min-width: 20px; margin-top: 2px; }
+
+  /* Timer */
+  .timer-display { font-size: 48px; font-family: var(--mono); color: var(--text); text-align: center; letter-spacing: 4px; }
+  .timer-label { text-align: center; font-size: 12px; color: var(--muted); margin-top: 4px; margin-bottom: 16px; }
+  .timer-btns { display: flex; justify-content: center; gap: 10px; }
+
+  /* Phase tracker */
+  .phase-item { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .phase-item:last-child { border-bottom: none; }
+  .phase-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .phase-dot.done { background: var(--green); }
+  .phase-dot.current { background: var(--accent); box-shadow: 0 0 0 3px rgba(108,140,255,0.25); }
+  .phase-dot.future { background: var(--surface3); }
+  .phase-name { font-size: 14px; font-weight: 500; color: var(--text); }
+  .phase-range { font-size: 11px; font-family: var(--mono); color: var(--accent); margin-top: 2px; }
+  .phase-desc { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+
+  /* Save buttons */
+  .save-row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+  /* Notification */
+  .toast { position: fixed; bottom: 20px; right: 20px; background: var(--surface2); border: 1px solid var(--green); color: var(--green); padding: 10px 18px; border-radius: 10px; font-size: 13px; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* Responsive */
+  @media (max-width: 500px) {
+    .grid4 { grid-template-columns: repeat(2, 1fr); }
+    .grid3 { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 99px; }
+
+  select.form-input { appearance: none; }
+  .wide { width: 100%; }
+  .mt { margin-top: 12px; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+  .chip { display: inline-block; font-size: 11px; font-family: var(--mono); padding: 3px 9px; border-radius: 99px; background: var(--surface3); color: var(--muted); margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <div class="logo">Rewire Recovery</div>
+    <h1>Your Recovery Dashboard</h1>
+    <p>Track progress · Build habits · Rewire your brain</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('today')">Today</button>
+    <button class="tab" onclick="showTab('streaks')">Streaks</button>
+    <button class="tab" onclick="showTab('urges')">Urges</button>
+    <button class="tab" onclick="showTab('journal')">Journal</button>
+    <button class="tab" onclick="showTab('tools')">Tools</button>
+    <button class="tab" onclick="showTab('progress')">Progress</button>
+  </div>
+
+  <!-- TODAY TAB -->
+  <div id="tab-today" class="section active">
+    <div class="card">
+      <div class="card-title">Today's date</div>
+      <div class="flex-between">
+        <div>
+          <div style="font-size:20px;font-weight:600" id="today-date-display">—</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px" id="day-count-label">Loading...</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;text-align:right">Clean today?</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="markToday(true)" id="btn-clean" style="font-size:13px">✓ Yes</button>
+            <button class="btn btn-ghost" onclick="markToday(false)" id="btn-relapse" style="font-size:13px;color:var(--red)">✗ No</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Daily habits check-in</div>
+      <div id="habit-checklist"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Quick mood log</div>
+      <div class="mood-row" id="mood-row">
+        <button class="mood-btn" onclick="setMood(this,'😔','Low')" title="Low">😔</button>
+        <button class="mood-btn" onclick="setMood(this,'😐','Neutral')" title="Neutral">😐</button>
+        <button class="mood-btn" onclick="setMood(this,'🙂','Good')" title="Good">🙂</button>
+        <button class="mood-btn" onclick="setMood(this,'😄','Great')" title="Great">😄</button>
+        <button class="mood-btn" onclick="setMood(this,'🔥','Fired up')" title="Fired up">🔥</button>
+      </div>
+      <textarea class="form-input wide" id="today-note" placeholder="Any notes for today? What triggered you? What helped?" rows="3"></textarea>
+      <div class="save-row">
+        <button class="btn btn-primary" onclick="saveTodayLog()">Save today's log</button>
+      </div>
+    </div>
+
+    <div class="grid4">
+      <div class="stat"><div class="stat-val green" id="stat-streak">0</div><div class="stat-lbl">Day streak</div></div>
+      <div class="stat"><div class="stat-val blue" id="stat-pct">—</div><div class="stat-lbl">Clean %</div></div>
+      <div class="stat"><div class="stat-val amber" id="stat-habits">0</div><div class="stat-lbl">Habits today</div></div>
+      <div class="stat"><div class="stat-val" id="stat-urges-today">0</div><div class="stat-lbl">Urges logged</div></div>
+    </div>
+  </div>
+
+  <!-- STREAKS TAB -->
+  <div id="tab-streaks" class="section">
+    <div class="card">
+      <div class="streak-hero">
+        <div class="streak-ring">
+          <svg viewBox="0 0 100 100">
+            <circle class="ring-bg" cx="50" cy="50" r="42"/>
+            <circle class="ring-fill" cx="50" cy="50" r="42" id="streak-ring-fill" stroke-dasharray="0 263.9"/>
+          </svg>
+          <div class="streak-center">
+            <div class="streak-num" id="streak-big">0</div>
+            <div class="streak-label">days</div>
+          </div>
+        </div>
+        <div class="streak-sub" id="streak-sub-msg">Start your journey today</div>
+        <div class="streak-goal" id="streak-goal-msg">Goal: 90 days — 0% complete</div>
+      </div>
+    </div>
+
+    <div class="grid3">
+      <div class="stat"><div class="stat-val green" id="best-streak">0</div><div class="stat-lbl">Best streak</div></div>
+      <div class="stat"><div class="stat-val blue" id="total-clean">0</div><div class="stat-lbl">Total clean days</div></div>
+      <div class="stat"><div class="stat-val amber" id="total-days-tracking">0</div><div class="stat-lbl">Days tracking</div></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="card-title">90-day heatmap</div>
+      <div class="cal-wrap">
+        <div class="cal-months" id="cal-months"></div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div class="cal-legend">
+        <div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--surface3)"></div> No data</div>
+        <div class="cal-leg-item"><div class="cal-leg-dot" style="background:#1a4731"></div> Clean</div>
+        <div class="cal-leg-item"><div class="cal-leg-dot" style="background:var(--green)"></div> Clean + habits</div>
+        <div class="cal-leg-item"><div class="cal-leg-dot" style="background:rgba(248,113,113,0.4)"></div> Slip</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Milestones</div>
+      <div id="milestones-list"></div>
+    </div>
+  </div>
+
+  <!-- URGES TAB -->
+  <div id="tab-urges" class="section">
+    <div class="card">
+      <div class="card-title">Log an urge</div>
+      <div class="grid2">
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Trigger</div>
+          <select class="form-input wide" id="urge-trigger">
+            <option>Boredom</option>
+            <option>Loneliness</option>
+            <option>Stress/Exam pressure</option>
+            <option>Late night</option>
+            <option>Post-study fatigue</option>
+            <option>Anxiety</option>
+            <option>Social rejection</option>
+            <option>Anger</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Intensity (1–10)</div>
+          <input type="range" min="1" max="10" value="5" id="urge-intensity" class="form-input wide" style="padding:12px 8px">
+          <div style="font-size:12px;font-family:var(--mono);color:var(--accent);margin-top:4px">Intensity: <span id="intensity-val">5</span>/10</div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Did you resist? What helped?</div>
+        <textarea class="form-input wide" id="urge-note" placeholder="e.g. Used urge surfing for 10 min, did push-ups, called a friend..."></textarea>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Outcome</div>
+          <select class="form-input wide" id="urge-outcome">
+            <option value="resisted">Resisted ✓</option>
+            <option value="slipped">Slipped ✗</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn btn-primary wide" onclick="logUrge()">Log urge</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Trigger analysis</div>
+      <div id="trigger-chart"></div>
+    </div>
+
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:12px">
+        <div class="card-title" style="margin-bottom:0">Recent urge log</div>
+        <div style="font-size:12px;color:var(--muted)" id="urge-stats-label">—</div>
+      </div>
+      <div class="log-list" id="urge-log-list">
+        <div style="text-align:center;color:var(--muted);font-size:13px;padding:20px">No urges logged yet</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JOURNAL TAB -->
+  <div id="tab-journal" class="section">
+    <div class="card">
+      <div class="card-title">New journal entry</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:13px;color:var(--muted)" id="journal-date-label">—</div>
+        <div style="font-size:12px;color:var(--muted)">Mood:</div>
+      </div>
+      <div class="mood-row" id="journal-mood-row">
+        <button class="mood-btn" onclick="setJournalMood(this,'😔')" >😔</button>
+        <button class="mood-btn" onclick="setJournalMood(this,'😐')">😐</button>
+        <button class="mood-btn" onclick="setJournalMood(this,'🙂')">🙂</button>
+        <button class="mood-btn" onclick="setJournalMood(this,'😄')">😄</button>
+        <button class="mood-btn" onclick="setJournalMood(this,'🔥')">🔥</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">What triggered you today? What worked? What will you do differently?</div>
+      <textarea class="form-input wide" id="journal-text" rows="5" placeholder="Be honest. This is private. Writing 5 sentences is enough."></textarea>
+      <div class="save-row">
+        <button class="btn btn-primary" onclick="saveJournal()">Save entry</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Past entries</div>
+      <div id="journal-list">
+        <div style="text-align:center;color:var(--muted);font-size:13px;padding:20px">Start journaling — entries appear here</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOOLS TAB -->
+  <div id="tab-tools" class="section">
+    <div class="card">
+      <div class="card-title">10-minute urge timer</div>
+      <div class="timer-display" id="timer-display">10:00</div>
+      <div class="timer-label">When the urge hits — start the timer. Breathe. It will pass.</div>
+      <div class="timer-btns">
+        <button class="btn btn-primary" id="timer-start-btn" onclick="startTimer()">Start</button>
+        <button class="btn btn-ghost" onclick="resetTimer()">Reset</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Evidence-based techniques</div>
+      <div id="techniques-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">HALT check</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.7">Before acting on an urge, check: which of these do you actually need?</div>
+      <div class="grid2" id="halt-grid">
+        <div class="stat" style="cursor:pointer" onclick="haltCheck(this,'Hungry','Eat a proper meal — even just a banana. Low blood sugar amplifies cravings 3x.')">
+          <div style="font-size:26px;margin-bottom:4px">🍛</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text)">Hungry?</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">Tap to check</div>
+        </div>
+        <div class="stat" style="cursor:pointer" onclick="haltCheck(this,'Angry/Anxious','Write down what''s bothering you. 5 rounds of box breathing (4s in, 4s hold, 4s out, 4s hold).')">
+          <div style="font-size:26px;margin-bottom:4px">😤</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text)">Angry?</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">Tap to check</div>
+        </div>
+        <div class="stat" style="cursor:pointer" onclick="haltCheck(this,'Lonely','Text or call someone right now. Even a 5-min voice note to a friend counts.')">
+          <div style="font-size:26px;margin-bottom:4px">💬</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text)">Lonely?</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">Tap to check</div>
+        </div>
+        <div class="stat" style="cursor:pointer" onclick="haltCheck(this,'Tired','Set a 20-min nap timer. Sleep deprivation collapses impulse control.')">
+          <div style="font-size:26px;margin-bottom:4px">😴</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text)">Tired?</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">Tap to check</div>
+        </div>
+      </div>
+      <div id="halt-msg" style="display:none;margin-top:14px;background:var(--surface2);border-radius:10px;padding:14px;font-size:13px;color:var(--text);line-height:1.7;border-left:3px solid var(--accent)"></div>
+    </div>
+  </div>
+
+  <!-- PROGRESS TAB -->
+  <div id="tab-progress" class="section">
+    <div class="card">
+      <div class="card-title">Recovery phase</div>
+      <div id="phase-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Habit consistency (last 30 days)</div>
+      <div id="habit-progress-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Stats overview</div>
+      <div class="grid4">
+        <div class="stat"><div class="stat-val green" id="prog-streak">0</div><div class="stat-lbl">Current streak</div></div>
+        <div class="stat"><div class="stat-val blue" id="prog-pct">0%</div><div class="stat-lbl">Clean rate</div></div>
+        <div class="stat"><div class="stat-val amber" id="prog-best">0</div><div class="stat-lbl">Best streak</div></div>
+        <div class="stat"><div class="stat-val" id="prog-urges">0</div><div class="stat-lbl">Urges resisted</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Settings</div>
+      <div class="check-row">
+        <div><div class="check-label">Recovery start date</div><div class="check-sub">When did you start this journey?</div></div>
+        <input type="date" class="form-input" id="start-date-input" style="width:150px" onchange="saveStartDate()">
+      </div>
+      <div class="check-row">
+        <div><div class="check-label">Reset all data</div><div class="check-sub">Erase everything — use carefully</div></div>
+        <button class="btn btn-danger" onclick="resetAll()">Reset</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== STATE =====
+const S = {
+  get(k, def) { try { return JSON.parse(localStorage.getItem('rw_'+k)) ?? def; } catch(e) { return def; } },
+  set(k, v) { localStorage.setItem('rw_'+k, JSON.stringify(v)); }
+};
+
+const HABITS = [
+  { id:'morning', label:'Morning routine', sub:'No phone for 60 min + 10 min movement' },
+  { id:'exercise', label:'Physical activity', sub:'Any movement — push-ups, walk, yoga' },
+  { id:'journal', label:'Journaling', sub:'Even 3 sentences is enough' },
+  { id:'real_conn', label:'Real human connection', sub:'One genuine conversation today' },
+  { id:'no_latephone', label:'Phone away by 10 PM', sub:'Charge outside room or bedside drawer' },
+  { id:'read', label:'Read or learn something', sub:'Book, course, or skill practice' },
+];
+
+const MILESTONES = [
+  { days:1, emoji:'🌱', name:'First day', desc:'The hardest step — taken' },
+  { days:3, emoji:'💧', name:'72-hour mark', desc:'Acute withdrawal softening' },
+  { days:7, emoji:'⚡', name:'One week', desc:'Brain starting to recalibrate' },
+  { days:14, emoji:'🧠', name:'Two weeks', desc:'Dopamine receptors upregulating' },
+  { days:21, emoji:'🔑', name:'21-day habit lock', desc:'New neural pathways forming' },
+  { days:30, emoji:'🌙', name:'One month', desc:'DeltaFosB declining significantly' },
+  { days:45, emoji:'🦅', name:'45 days', desc:'Flatline phase typically ends here' },
+  { days:60, emoji:'🌊', name:'Two months', desc:'Reward sensitivity restored' },
+  { days:90, emoji:'🏆', name:'90-day reboot', desc:'Full neurobiological recalibration' },
+  { days:180, emoji:'🌟', name:'6 months', desc:'Identity shift complete' },
+  { days:365, emoji:'👑', name:'One year', desc:'New baseline — you are rewired' },
+];
+
+const TECHNIQUES = [
+  { name:'Urge surfing', tag:'instant', tagLabel:'In the moment', body:`Don't fight the urge — observe it like a wave:<br><br>
+    <div class="technique-step"><span class="step-num">01</span><span>Notice where you feel it in your body — chest tightness, restlessness, heat.</span></div>
+    <div class="technique-step"><span class="step-num">02</span><span>Name it: "I'm having the urge to scroll/watch porn."</span></div>
+    <div class="technique-step"><span class="step-num">03</span><span>Breathe steadily and watch it rise, peak, and fall — like a wave. Don't surf it. Observe it.</span></div>
+    <div class="technique-step"><span class="step-num">04</span><span>Most urges peak at 3–5 minutes. You just have to outlast that window.</span></div>` },
+  { name:'10-minute delay rule', tag:'instant', tagLabel:'In the moment', body:`Use the timer in the Tools tab. Commit to one alternative action for exactly 10 minutes:<br><br>
+    <div class="technique-step"><span class="step-num">01</span><span>Start the 10-minute timer immediately.</span></div>
+    <div class="technique-step"><span class="step-num">02</span><span>Do 20 push-ups, step outside, splash cold water on your face, or call someone.</span></div>
+    <div class="technique-step"><span class="step-num">03</span><span>At 10 minutes, the urge intensity will have dropped 50–70%. Reassess.</span></div>` },
+  { name:'HALT check', tag:'instant', tagLabel:'In the moment', body:`Before acting on any urge, ask: what do I actually need right now?<br><br>
+    <b style="color:var(--text)">H</b> — Hungry? Eat something.<br><b style="color:var(--text)">A</b> — Angry/Anxious? Write it down. Box breathe.<br><b style="color:var(--text)">L</b> — Lonely? Text or call someone.<br><b style="color:var(--text)">T</b> — Tired? Set a 20-min nap timer.<br><br>Most urges are substitutes for these unmet needs — not the real thing.` },
+  { name:'Cognitive defusion (ACT)', tag:'daily', tagLabel:'Daily practice', body:`Change your relationship with the thought without fighting it:<br><br>
+    <div class="technique-step"><span class="step-num">01</span><span>Instead of: "I need to watch porn" → say: "I notice I'm having the thought that I need to watch porn."</span></div>
+    <div class="technique-step"><span class="step-num">02</span><span>Visualize the thought as a cloud passing through your sky. Present. But not permanent.</span></div>
+    <div class="technique-step"><span class="step-num">03</span><span>Ask: does acting on this thought move me toward or away from the person I want to become?</span></div>` },
+  { name:'If-then implementation intention', tag:'daily', tagLabel:'Daily practice', body:`Pre-program your response before the urge even arrives:<br><br>
+    Write 2–3 specific if-then plans tonight:<br>
+    <div class="technique-step"><span class="step-num">→</span><span>"If I pick up my phone after 10 PM, then I put it in my bag and pick up my book."</span></div>
+    <div class="technique-step"><span class="step-num">→</span><span>"If I feel the urge, then I do 20 push-ups and text my accountability partner."</span></div>
+    <div class="technique-step"><span class="step-num">→</span><span>"If I open an incognito tab, then I close it immediately and start the 10-min timer."</span></div>` },
+  { name:'Pranayama / box breathing', tag:'deep', tagLabel:'Deep practice', body:`4-7-8 breathing or box breathing activates your parasympathetic nervous system and reduces cortisol (a major craving trigger):<br><br>
+    <div class="technique-step"><span class="step-num">01</span><span>Inhale for 4 counts.</span></div>
+    <div class="technique-step"><span class="step-num">02</span><span>Hold for 4 counts.</span></div>
+    <div class="technique-step"><span class="step-num">03</span><span>Exhale for 4 counts.</span></div>
+    <div class="technique-step"><span class="step-num">04</span><span>Hold for 4 counts.</span></div>
+    <div class="technique-step"><span class="step-num">05</span><span>Repeat 5 rounds. Do this twice daily — morning and when an urge hits.</span></div>` },
+];
+
+const PHASES = [
+  { name:'Acute phase', range:'Days 1–7', desc:'Survival mode. Intense urges, mood swings, irritability are normal. Your reward system is protesting. Focus only on environment setup and three daily anchors: morning routine, evening wind-down, one real conversation.' },
+  { name:'Scaffolding phase', range:'Days 8–30', desc:'Urges are still frequent but becoming familiar. Layer in replacement habits. Start tracking. Identify your top 3 trigger situations. Install Fortify app. Tell one trusted person.' },
+  { name:'Recalibration window', range:'Months 1–3', desc:'Neuroplasticity doing the heavy lifting. You may hit a "flatline" — temporary low motivation as your brain resensitizes. This is normal and temporary. Shift focus to building identity and skills.' },
+  { name:'Consolidation', range:'Months 3–6+', desc:'New neural pathways strengthening. The identity shift from "trying to quit" to "someone who doesn\'t do that" is the real milestone. Continue weekly environment audits. Do not test yourself.' },
+];
+
+// ===== INIT =====
+let todayMood = null;
+let journalMood = null;
+let timerInterval = null;
+let timerLeft = 600;
+let timerRunning = false;
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function formatDate(d) {
+  return d.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+
+function showTab(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  const tabs = ['today','streaks','urges','journal','tools','progress'];
+  document.querySelectorAll('.tab')[tabs.indexOf(name)].classList.add('active');
+  if (name === 'streaks') renderHeatmap();
+  if (name === 'progress') renderProgress();
+  if (name === 'urges') renderUrgeLog();
+  if (name === 'journal') renderJournal();
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== TODAY =====
+function initToday() {
+  document.getElementById('today-date-display').textContent = formatDate(new Date());
+  const start = S.get('start_date', null);
+  const streak = calcStreak();
+  document.getElementById('day-count-label').textContent = start ? `Day ${daysSince(start)} of recovery` : 'Set your start date in Progress tab';
+  document.getElementById('stat-streak').textContent = streak;
+  document.getElementById('stat-pct').textContent = calcCleanPct() + '%';
+
+  const todayData = S.get('day_' + todayKey(), {});
+  document.getElementById('stat-habits').textContent = countCheckedHabits() + '/' + HABITS.length;
+  const urges = S.get('urges', []);
+  const todayUrges = urges.filter(u => u.date === todayKey());
+  document.getElementById('stat-urges-today').textContent = todayUrges.length;
+
+  renderHabitChecklist();
+  if (todayData.mood) {
+    const btns = document.querySelectorAll('#mood-row .mood-btn');
+    btns.forEach(b => { if (b.textContent === todayData.mood) b.classList.add('selected'); });
+    todayMood = todayData.mood;
+  }
+  if (todayData.note) document.getElementById('today-note').value = todayData.note;
+
+  // Update clean/relapse buttons
+  if (todayData.clean === true) {
+    document.getElementById('btn-clean').style.background = 'rgba(52,211,153,0.15)';
+    document.getElementById('btn-clean').style.color = 'var(--green)';
+    document.getElementById('btn-clean').style.borderColor = 'var(--green)';
+  } else if (todayData.clean === false) {
+    document.getElementById('btn-relapse').style.background = 'rgba(248,113,113,0.15)';
+    document.getElementById('btn-relapse').style.borderColor = 'var(--red)';
+  }
+}
+
+function renderHabitChecklist() {
+  const todayData = S.get('day_' + todayKey(), {});
+  const habits = todayData.habits || {};
+  const container = document.getElementById('habit-checklist');
+  container.innerHTML = HABITS.map(h => `
+    <div class="check-row">
+      <div>
+        <div class="check-label">${h.label}</div>
+        <div class="check-sub">${h.sub}</div>
+      </div>
+      <div class="toggle-wrap">
+        <button class="tog-btn ${habits[h.id] === true ? 'yes' : ''}" onclick="toggleHabit('${h.id}', true, this)">✓</button>
+        <button class="tog-btn ${habits[h.id] === false ? 'no' : ''}" onclick="toggleHabit('${h.id}', false, this)">✗</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleHabit(id, val, btn) {
+  const todayData = S.get('day_' + todayKey(), {});
+  if (!todayData.habits) todayData.habits = {};
+  if (todayData.habits[id] === val) {
+    delete todayData.habits[id];
+  } else {
+    todayData.habits[id] = val;
+  }
+  S.set('day_' + todayKey(), todayData);
+  renderHabitChecklist();
+  document.getElementById('stat-habits').textContent = countCheckedHabits() + '/' + HABITS.length;
+}
+
+function countCheckedHabits() {
+  const todayData = S.get('day_' + todayKey(), {});
+  const habits = todayData.habits || {};
+  return Object.values(habits).filter(v => v === true).length;
+}
+
+function markToday(clean) {
+  const todayData = S.get('day_' + todayKey(), {});
+  todayData.clean = clean;
+  S.set('day_' + todayKey(), todayData);
+  const streak = calcStreak();
+  document.getElementById('stat-streak').textContent = streak;
+  document.getElementById('stat-pct').textContent = calcCleanPct() + '%';
+  if (clean) {
+    document.getElementById('btn-clean').style.background = 'rgba(52,211,153,0.15)';
+    document.getElementById('btn-clean').style.color = 'var(--green)';
+    document.getElementById('btn-clean').style.borderColor = 'var(--green)';
+    document.getElementById('btn-relapse').style = '';
+    toast('✓ Clean day logged! Keep going.');
+  } else {
+    document.getElementById('btn-relapse').style.background = 'rgba(248,113,113,0.15)';
+    document.getElementById('btn-relapse').style.borderColor = 'var(--red)';
+    document.getElementById('btn-clean').style = '';
+    toast('Logged. Remember: a slip is data, not defeat. Reset and keep going.');
+  }
+}
+
+function setMood(btn, emoji, label) {
+  document.querySelectorAll('#mood-row .mood-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  todayMood = emoji;
+}
+
+function saveTodayLog() {
+  const todayData = S.get('day_' + todayKey(), {});
+  if (todayMood) todayData.mood = todayMood;
+  todayData.note = document.getElementById('today-note').value;
+  S.set('day_' + todayKey(), todayData);
+  toast('Today\'s log saved!');
+}
+
+// ===== STREAKS =====
+function daysSince(dateStr) {
+  if (!dateStr) return 0;
+  const start = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  start.setHours(0,0,0,0);
+  return Math.floor((today - start) / 86400000) + 1;
+}
+
+function calcStreak() {
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const data = S.get('day_' + key, {});
+    if (data.clean === true) {
+      streak++;
+    } else if (data.clean === false) {
+      break;
+    } else {
+      if (i === 0) continue;
+      break;
+    }
+  }
+  return streak;
+}
+
+function calcCleanPct() {
+  let clean = 0, total = 0;
+  const today = new Date();
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const data = S.get('day_' + key, {});
+    if (data.clean === true) { clean++; total++; }
+    else if (data.clean === false) { total++; }
+  }
+  if (total === 0) return '—';
+  return Math.round((clean / total) * 100);
+}
+
+function calcBestStreak() {
+  let best = 0, cur = 0;
+  const today = new Date();
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const data = S.get('day_' + key, {});
+    if (data.clean === true) { cur++; best = Math.max(best, cur); }
+    else if (data.clean === false) { cur = 0; }
+  }
+  return best;
+}
+
+function renderHeatmap() {
+  const streak = calcStreak();
+  document.getElementById('streak-big').textContent = streak;
+  document.getElementById('best-streak').textContent = calcBestStreak();
+  
+  let totalClean = 0, totalDays = 0;
+  const today = new Date();
+  for (let i = 0; i < 90; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const data = S.get('day_' + key, {});
+    if (data.clean !== undefined) totalDays++;
+    if (data.clean === true) totalClean++;
+  }
+  document.getElementById('total-clean').textContent = totalClean;
+  document.getElementById('total-days-tracking').textContent = totalDays;
+
+  const pct = Math.round((streak / 90) * 100);
+  const circumference = 2 * Math.PI * 42;
+  document.getElementById('streak-ring-fill').setAttribute('stroke-dasharray', `${(pct/100)*circumference} ${circumference}`);
+  document.getElementById('streak-goal-msg').textContent = `Goal: 90 days — ${pct}% complete`;
+
+  const msgs = ['Start your journey today', 'One day at a time.', 'Building momentum.', 'Your brain is changing.', 'Stay the course.', '90 days coming up.', 'You\'re rewriting your story.'];
+  document.getElementById('streak-sub-msg').textContent = streak === 0 ? msgs[0] : streak < 7 ? msgs[1] : streak < 14 ? msgs[2] : streak < 30 ? msgs[3] : streak < 60 ? msgs[4] : streak < 90 ? msgs[5] : msgs[6];
+
+  // Heatmap grid — 13 weeks x 7 days
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  for (let w = 12; w >= 0; w--) {
+    const col = document.createElement('div');
+    col.className = 'cal-col';
+    for (let d = 6; d >= 0; d--) {
+      const day = new Date(today);
+      day.setDate(day.getDate() - (w * 7 + d));
+      const key = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
+      const data = S.get('day_' + key, {});
+      const cell = document.createElement('div');
+      cell.className = 'cal-cell';
+      const isToday = key === todayKey();
+      if (isToday) cell.classList.add('today-cell');
+      if (data.clean === true) {
+        const habits = data.habits || {};
+        const goodHabits = Object.values(habits).filter(v => v === true).length;
+        cell.classList.add(goodHabits >= 3 ? 'clean-great' : 'clean');
+      } else if (data.clean === false) {
+        cell.classList.add('relapse');
+      }
+      cell.title = `${day.toLocaleDateString('en-IN', { day:'numeric', month:'short' })}: ${data.clean === true ? 'Clean' : data.clean === false ? 'Slip' : 'No data'}`;
+      col.appendChild(cell);
+    }
+    grid.appendChild(col);
+  }
+
+  // Milestones
+  const mList = document.getElementById('milestones-list');
+  mList.innerHTML = MILESTONES.map(m => {
+    const unlocked = streak >= m.days;
+    return `<div class="milestone">
+      <div class="ms-icon ${unlocked ? 'unlocked' : 'locked'}">${m.emoji}</div>
+      <div class="ms-info">
+        <div class="ms-name">${m.name}</div>
+        <div class="ms-desc">${m.desc}</div>
+      </div>
+      <div class="ms-day ${unlocked ? '' : 'locked'}">${unlocked ? 'Unlocked' : 'Day ' + m.days}</div>
+    </div>`;
+  }).join('');
+}
+
+// ===== URGES =====
+function initUrges() {
+  document.getElementById('urge-intensity').addEventListener('input', function() {
+    document.getElementById('intensity-val').textContent = this.value;
+  });
+}
+
+function logUrge() {
+  const trigger = document.getElementById('urge-trigger').value;
+  const intensity = document.getElementById('urge-intensity').value;
+  const note = document.getElementById('urge-note').value;
+  const outcome = document.getElementById('urge-outcome').value;
+  const urges = S.get('urges', []);
+  urges.unshift({ date: todayKey(), trigger, intensity: parseInt(intensity), note, outcome, time: new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) });
+  S.set('urges', urges);
+  document.getElementById('urge-note').value = '';
+  document.getElementById('urge-intensity').value = 5;
+  document.getElementById('intensity-val').textContent = '5';
+  const todayUrges = S.get('urges', []).filter(u => u.date === todayKey());
+  document.getElementById('stat-urges-today').textContent = todayUrges.length;
+  toast(outcome === 'resisted' ? 'Urge resisted — logged! That takes strength.' : 'Slip logged. This is data. What will you do differently?');
+  renderUrgeLog();
+}
+
+function renderUrgeLog() {
+  const urges = S.get('urges', []);
+  const container = document.getElementById('urge-log-list');
+  if (urges.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px">No urges logged yet</div>';
+  } else {
+    container.innerHTML = urges.slice(0,20).map((u,i) => `
+      <div class="log-item">
+        <div class="log-item-content">
+          <div class="log-trigger">${u.trigger} · intensity ${u.intensity}/10</div>
+          <div class="log-note">${u.note || '<em style="color:var(--muted)">No notes</em>'}</div>
+          <div class="log-meta">${u.date} · ${u.time || ''} · <span style="color:${u.outcome==='resisted'?'var(--green)':'var(--red)'}">${u.outcome === 'resisted' ? '✓ Resisted' : '✗ Slipped'}</span></div>
+        </div>
+        <button class="btn btn-danger" style="margin-left:10px;flex-shrink:0" onclick="deleteUrge(${i})">Del</button>
+      </div>
+    `).join('');
+  }
+
+  // Trigger chart
+  const counts = {};
+  urges.forEach(u => { counts[u.trigger] = (counts[u.trigger]||0) + 1; });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,6);
+  const max = sorted[0]?.[1] || 1;
+  document.getElementById('trigger-chart').innerHTML = sorted.length === 0
+    ? '<div style="color:var(--muted);font-size:13px">Log urges to see your trigger patterns</div>'
+    : sorted.map(([name, count]) => `
+      <div class="trigger-bar">
+        <div class="trigger-name">${name.length > 14 ? name.slice(0,13)+'…' : name}</div>
+        <div class="trigger-bar-bg"><div class="trigger-bar-fill" style="width:${Math.round((count/max)*100)}%"></div></div>
+        <div class="trigger-count">${count}</div>
+      </div>
+    `).join('');
+
+  const resisted = urges.filter(u => u.outcome === 'resisted').length;
+  document.getElementById('urge-stats-label').textContent = `${resisted}/${urges.length} resisted`;
+}
+
+function deleteUrge(i) {
+  const urges = S.get('urges', []);
+  urges.splice(i, 1);
+  S.set('urges', urges);
+  renderUrgeLog();
+}
+
+// ===== JOURNAL =====
+function setJournalMood(btn, emoji) {
+  document.querySelectorAll('#journal-mood-row .mood-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  journalMood = emoji;
+}
+
+function saveJournal() {
+  const text = document.getElementById('journal-text').value.trim();
+  if (!text) { toast('Write something first.'); return; }
+  const entries = S.get('journal', []);
+  entries.unshift({ date: todayKey(), mood: journalMood || '😐', text, time: new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) });
+  S.set('journal', entries);
+  document.getElementById('journal-text').value = '';
+  document.querySelectorAll('#journal-mood-row .mood-btn').forEach(b => b.classList.remove('selected'));
+  journalMood = null;
+  toast('Journal entry saved.');
+  renderJournal();
+}
+
+function renderJournal() {
+  const today = new Date();
+  document.getElementById('journal-date-label').textContent = formatDate(today);
+  const entries = S.get('journal', []);
+  const container = document.getElementById('journal-list');
+  if (entries.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:20px">Start journaling — entries appear here</div>';
+  } else {
+    container.innerHTML = entries.slice(0,10).map((e,i) => `
+      <div class="journal-entry">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="journal-date">${e.date} · ${e.time || ''}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">${e.mood}</span>
+            <button class="btn btn-danger" onclick="deleteJournal(${i})">Del</button>
+          </div>
+        </div>
+        <div class="journal-text">${e.text.replace(/\n/g,'<br>')}</div>
+      </div>
+    `).join('');
+  }
+}
+
+function deleteJournal(i) {
+  const entries = S.get('journal', []);
+  entries.splice(i, 1);
+  S.set('journal', entries);
+  renderJournal();
+}
+
+// ===== TOOLS =====
+function initTools() {
+  const list = document.getElementById('techniques-list');
+  list.innerHTML = TECHNIQUES.map((t,i) => `
+    <div class="technique" onclick="toggleTechnique(this)">
+      <div class="technique-header">
+        <div class="technique-name">${t.name}</div>
+        <span class="technique-tag tag-${t.tag}">${t.tagLabel}</span>
+      </div>
+      <div class="technique-body">${t.body}</div>
+    </div>
+  `).join('');
+}
+
+function toggleTechnique(el) {
+  el.classList.toggle('open');
+}
+
+function startTimer() {
+  if (timerRunning) {
+    clearInterval(timerInterval);
+    timerRunning = false;
+    document.getElementById('timer-start-btn').textContent = 'Resume';
+  } else {
+    timerRunning = true;
+    document.getElementById('timer-start-btn').textContent = 'Pause';
+    timerInterval = setInterval(() => {
+      timerLeft--;
+      const m = Math.floor(timerLeft / 60);
+      const s = timerLeft % 60;
+      document.getElementById('timer-display').textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      if (timerLeft <= 0) {
+        clearInterval(timerInterval);
+        timerRunning = false;
+        document.getElementById('timer-display').textContent = '00:00';
+        document.getElementById('timer-start-btn').textContent = 'Start';
+        toast('Timer done! The urge has passed. You did it.');
+      }
+    }, 1000);
+  }
+}
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  timerLeft = 600;
+  document.getElementById('timer-display').textContent = '10:00';
+  document.getElementById('timer-start-btn').textContent = 'Start';
+}
+
+function haltCheck(card, title, msg) {
+  const msgEl = document.getElementById('halt-msg');
+  msgEl.style.display = 'block';
+  msgEl.innerHTML = `<strong style="color:var(--text)">${title}?</strong><br>${msg}`;
+}
+
+// ===== PROGRESS =====
+function renderProgress() {
+  const streak = calcStreak();
+  document.getElementById('prog-streak').textContent = streak;
+  const pct = calcCleanPct();
+  document.getElementById('prog-pct').textContent = pct === '—' ? '—' : pct + '%';
+  document.getElementById('prog-best').textContent = calcBestStreak();
+  const resisted = S.get('urges', []).filter(u => u.outcome === 'resisted').length;
+  document.getElementById('prog-urges').textContent = resisted;
+
+  // Phases
+  const phaseList = document.getElementById('phase-list');
+  phaseList.innerHTML = PHASES.map((p, i) => {
+    let status = 'future';
+    if (streak >= [1,8,30,90][i]) status = 'done';
+    if (streak >= [0,7,29,89][i] && streak < [8,30,90,999][i]) status = 'current';
+    return `<div class="phase-item">
+      <div class="phase-dot ${status}"></div>
+      <div>
+        <div class="phase-name">${p.name}</div>
+        <div class="phase-range">${p.range}</div>
+        <div class="phase-desc">${p.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Habit consistency
+  const habitList = document.getElementById('habit-progress-list');
+  habitList.innerHTML = HABITS.map(h => {
+    let done = 0, total = 0;
+    const today = new Date();
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const data = S.get('day_' + key, {});
+      if (data.habits) { total++; if (data.habits[h.id] === true) done++; }
+    }
+    const pct = total === 0 ? 0 : Math.round((done/total)*100);
+    return `<div style="margin-bottom:14px">
+      <div class="flex-between" style="margin-bottom:5px">
+        <div style="font-size:13px;color:var(--text)">${h.label}</div>
+        <div style="font-size:12px;font-family:var(--mono);color:var(--muted)">${pct}%</div>
+      </div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill ${pct >= 70 ? 'green' : pct >= 40 ? '' : 'amber'}" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+
+  // Start date input
+  const start = S.get('start_date', null);
+  if (start) document.getElementById('start-date-input').value = start;
+}
+
+function saveStartDate() {
+  const val = document.getElementById('start-date-input').value;
+  S.set('start_date', val);
+  const label = document.getElementById('day-count-label');
+  if (label) label.textContent = `Day ${daysSince(val)} of recovery`;
+  toast('Start date saved!');
+}
+
+function resetAll() {
+  if (confirm('Are you sure? This will erase all your data.')) {
+    Object.keys(localStorage).filter(k => k.startsWith('rw_')).forEach(k => localStorage.removeItem(k));
+    location.reload();
+  }
+}
+
+// ===== BOOT =====
+initToday();
+initUrges();
+initTools();
+renderUrgeLog();
+renderJournal();
+</script>
+</body>
+</html>
